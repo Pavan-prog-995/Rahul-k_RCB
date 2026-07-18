@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resume Optimizer Tool</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/stex/stex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; min-height: 100vh; }
+
+  /* ── MAIN APP ── */
+  #mainApp { display: block; }
+
+  /* ── HEADER ── */
+  .header {
+    background: linear-gradient(135deg, #1a1f2e, #2d3561);
+    padding: 16px 28px; display: flex; align-items: center; gap: 14px;
+    border-bottom: 2px solid #3d4fd6;
+  }
+  .header h1 { font-size: 20px; color: #fff; }
+  .header span { font-size: 12px; color: #8892b0; }
+  .badge { background: #3d4fd6; color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+  /* ── STEPS ── */
+  .steps { display: flex; background: #161b27; border-bottom: 1px solid #2a2f45; }
+  .step {
+    flex: 1; padding: 13px 8px; text-align: center; cursor: pointer;
+    font-size: 12px; color: #6b7280; border-bottom: 3px solid transparent; transition: all 0.2s;
+  }
+  .step.active { color: #3d4fd6; border-bottom-color: #3d4fd6; background: #1a2035; }
+  .step.done { color: #22c55e; border-bottom-color: #22c55e; }
+  .num {
+    display: inline-block; width: 20px; height: 20px; border-radius: 50%;
+    background: #2a2f45; color: #aaa; font-size: 11px; line-height: 20px;
+    margin-right: 5px; font-weight: bold;
+  }
+  .step.active .num { background: #3d4fd6; color: #fff; }
+  .step.done .num { background: #22c55e; color: #fff; }
+
+  /* ── PANELS ── */
+  .container { height: calc(100vh - 112px); overflow: hidden; }
+  .panel { height: 100%; padding: 18px 22px; overflow-y: auto; display: none; flex-direction: column; gap: 12px; }
+  .panel.active { display: flex; }
+
+  .lbl { font-size: 11px; color: #8892b0; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; }
+
+  textarea {
+    width: 100%; background: #1a1f2e; border: 1px solid #2a2f45; border-radius: 8px;
+    color: #e0e0e0; padding: 12px; font-size: 13px; resize: vertical;
+    font-family: 'Segoe UI', sans-serif; line-height: 1.6; transition: border 0.2s;
+  }
+  textarea:focus { outline: none; border-color: #3d4fd6; }
+
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 7px; cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: all 0.2s;
+    display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .bp { background: #3d4fd6; color: #fff; }
+  .bp:hover { background: #4f61e8; }
+  .bg { background: #22c55e; color: #fff; }
+  .bg:hover { background: #16a34a; }
+  .bo { background: #f97316; color: #fff; }
+  .bo:hover { background: #ea6c0a; }
+  .bgr { background: #2a2f45; color: #ccc; }
+  .bgr:hover { background: #353b56; }
+
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .card {
+    background: #1a2035; border: 1px solid #2d3561; border-radius: 8px;
+    padding: 13px; font-size: 13px; color: #94a3b8; line-height: 1.7;
+  }
+  .card strong { color: #3d4fd6; }
+  .card.warn { border-color: #f97316; }
+  .card.warn strong { color: #f97316; }
+
+  .code-box {
+    background: #1a1f2e; border: 1px solid #2a2f45; border-radius: 8px;
+    padding: 12px; font-size: 11.5px; color: #94a3b8; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word; max-height: 220px; overflow-y: auto;
+    font-family: 'Courier New', monospace;
+  }
+
+  .latex-area {
+    flex: 1; width: 100%; min-height: 0;
+    background: #1a1f2e; border: 1px solid #2a2f45; border-radius: 8px;
+    color: #e0e0e0; padding: 12px; font-family: 'Courier New', monospace;
+    font-size: 12px; resize: none; line-height: 1.6;
+  }
+  .latex-area:focus { outline: none; border-color: #3d4fd6; }
+
+  #step4Panel { flex-direction: column; }
+  .pdf-toolbar {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    background: #161b27; padding: 10px 14px; border-radius: 8px; border: 1px solid #2a2f45;
+  }
+  .pdf-frame-wrap {
+    flex: 1; min-height: 0; border-radius: 8px; overflow: hidden;
+    border: 1px solid #2a2f45; background: #fff; position: relative;
+  }
+  iframe#pdfFrame { width: 100%; height: 100%; border: none; display: block; }
+  .pdf-placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; color: #6b7280; gap: 10px; font-size: 14px; background: #1a1f2e;
+  }
+  .pdf-placeholder .icon { font-size: 48px; }
+
+  .spinner {
+    display: none; width: 20px; height: 20px; border: 3px solid #2a2f45;
+    border-top-color: #3d4fd6; border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-pill { font-size: 11px; padding: 3px 10px; border-radius: 20px; background: #2a2f45; color: #aaa; }
+  .status-pill.ok { background: #14532d; color: #86efac; }
+  .status-pill.err { background: #450a0a; color: #fca5a5; }
+  .status-pill.loading { background: #1e3a5f; color: #93c5fd; }
+
+  .instr { background: #1a2035; border-left: 4px solid #f97316; border-radius: 0 8px 8px 0; padding: 13px; font-size: 13px; line-height: 1.8; color: #cbd5e1; }
+  .instr ol { padding-left: 18px; }
+  .instr li { margin-bottom: 3px; }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: #22c55e; color: #fff;
+    padding: 11px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    z-index: 99999; opacity: 0; transform: translateY(10px); transition: all 0.3s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.err { background: #ef4444; }
+  .toast.inf { background: #A9A9A9; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: #1a1f2e; }
+  ::-webkit-scrollbar-thumb { background: #3d4fd6; border-radius: 3px; }
+
+  /* ── CODEMIRROR EDITOR ── */
+  .CodeMirror {
+    height: 100% !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 13px !important;
+    line-height: 1.6 !important;
+    background: #1e1e2e !important;
+  }
+  .CodeMirror-scroll { height: 100%; }
+  #cmEditor { display: flex; flex-direction: column; }
+  #cmEditor .CodeMirror { flex: 1; border-radius: 8px; }
+  /* Highlight active line */
+  .CodeMirror-activeline-background { background: #2a2f4a !important; }
+  /* Line numbers */
+  .CodeMirror-gutters { background: #161b27 !important; border-right: 1px solid #2a2f45 !important; }
+  .CodeMirror-linenumber { color: #4a5568 !important; }
+  /* Custom LaTeX token colors */
+  .cm-keyword { color: #569cd6 !important; font-weight: bold; }   /* \commands */
+  .cm-builtin { color: #569cd6 !important; font-weight: bold; }
+  .cm-tag    { color: #569cd6 !important; font-weight: bold; }
+  .cm-bracket { color: #ffd700 !important; font-weight: bold; }   /* {} [] */
+  .cm-string  { color: #ce9178 !important; }                      /* text content */
+  .cm-comment { color: #6a9955 !important; font-style: italic; }  /* % comments */
+  .cm-number  { color: #b5cea8 !important; }                      /* numbers */
+  .cm-atom    { color: #d4a0ff !important; }                      /* special */
+  .cm-variable{ color: #e0e0e0 !important; }
+
+</style>
+</head>
+<body>
+<!-- IP LOCK -->
+<div id="ipBlockScreen" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#0f1117; z-index:99999; flex-direction:column; align-items:center; justify-content:center;">
+  <div style="text-align:center; padding:40px; background:#1a1f2e; border:1px solid #ef4444; border-radius:16px; max-width:420px;">
+    <div style="font-size:48px; margin-bottom:16px;">🔒</div>
+    <h2 style="color:#ef4444; font-size:20px; margin-bottom:10px;">Access Denied</h2>
+    <p style="color:#8892b0; font-size:14px; line-height:1.6;">This tool is restricted to authorized network access only.<br><br>
+      Your IP: <span id="blockedIP" style="color:#f97316; font-family:monospace; font-weight:bold;">detecting...</span><br><br>
+      If you believe this is a mistake, contact your administrator and share your IP address above.</p>
+  </div>
+</div>
+ 
+<script>
+// ════════════════════════════════════════════════════
+//  🌐 IP LOCK CONFIG — ADD YOUR ALLOWED IPs HERE
+// ════════════════════════════════════════════════════
+const ALLOWED_IPS = [
+  "45.59.12.226", "122.177.242.204", "115.98.197.139" , "122.177.246.71". "153.66.69.158" , "115.99.194.38"
+];
+// ════════════════════════════════════════════════════
+
+(function() {
+  fetch("https://api.ipify.org?format=json")
+    .then(r => r.json())
+    .then(data => {
+      const userIP = data.ip;
+      console.log("Detected IP:", userIP); // helpful for setup/debugging
+      if (!ALLOWED_IPS.includes(userIP)) {
+        const block = document.getElementById("ipBlockScreen");
+        block.style.display = "flex";
+        document.body.style.overflow = "hidden";
+        const ipSpan = document.getElementById("blockedIP");
+        if (ipSpan) ipSpan.textContent = userIP;
+      }
+    })
+    .catch(() => {
+      // If IP check fails, block access to be safe
+      const block = document.getElementById("ipBlockScreen");
+      block.style.display = "flex";
+      document.body.style.overflow = "hidden";
+      const ipSpan = document.getElementById("blockedIP");
+      if (ipSpan) ipSpan.textContent = "could not detect";
+    });
+})();
+</script>
+
+<!-- ── MAIN APP ───────────────────────────────────────────────────────────────-->
+<div id="mainApp">
+  <div class="header">
+    <div>
+      <h1>🏹🏹🏹Ram Career Bridge Staff Portal 🏹🏹🏹</h1>
+      <span style="background-color: #FFFFFF; color: #000; padding: 5px 10px; border-radius: 5px;">This website is only for Neeraj Borra</span>
+    </div>
+    <div class="badge">Your mission is to apply to 30 jobs every day. Please reach out to Pavan if you have any questions.
+</div>
+  </div>
+
+  <div class="steps">
+    <div class="step active" id="tab1" onclick="goStep(1)"><span class="num" id="n1">1</span>Paste JD</div>
+    <div class="step" id="tab2" onclick="goStep(2)"><span class="num" id="n2">2</span>Copy → Claude AI</div>
+    <div class="step" id="tab3" onclick="goStep(3)"><span class="num" id="n3">3</span>Paste Code</div>
+    <div class="step" id="tab4" onclick="goStep(4)"><span class="num" id="n4">4</span>PDF Download</div>
+  </div>
+
+  <div class="container">
+
+    <!-- STEP 1 -->
+    <div class="panel active" id="step1Panel">
+      <div class="lbl">📋 Job Description</div>
+      <textarea id="jdInput" rows="16" placeholder="Paste the full job description here...&#10;&#10;Include:&#10;• Job Title  • Required Skills  • Responsibilities  • Location"></textarea>
+      <div class="row">
+        <button class="btn bp" onclick="generatePrompt()">⚡Paste & Continue</button>
+        <button class="btn bgr" onclick="document.getElementById('jdInput').value=''">🗑 Clear</button>
+        <span style="font-size:11px;color:#6b7280;" id="jdCount">0 chars</span>
+      </div>
+      <div class="card">
+        <strong>How it works:</strong> Paste the job description → auto-combines with your hidden resume + ATS instructions → copy → paste into Claude AI → paste Code back → download PDF.
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="panel" id="step2Panel">
+      <div class="lbl">🤖 Generated Code (ready for Claude AI)</div>
+      <div class="code-box" id="promptDisplay">Your Code will appear here...</div>
+      <div class="row">
+        <button class="btn bg" onclick="copyPrompt()">📋 Copy Full Data</button>
+        <button class="btn bo" onclick="openClaude()">🔗 Open Claude AI</button>
+        <button class="btn bgr" onclick="goStep(1)">← Back</button>
+      </div>
+      <div class="instr">
+        <strong>📌 Steps:</strong>
+        <ol>
+          <li>Click <strong>Copy Full Code</strong></li>
+          <li>Click <strong>Open Claude AI</strong> (new tab)</li>
+          <li>Paste into Claude chat → press Enter</li>
+          <li>Wait for full  code response</li>
+          <li>Select all Claude's response → Copy</li>
+          <li>Come back here → Step 3 → Paste Code</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="panel" id="step3Panel">
+      <div class="lbl">✍️ Paste &amp; Edit Code — Color Highlighted</div>
+      <div class="row">
+        <button class="btn bp" onclick="pasteLatex()">📋 Paste from Clipboard</button>
+        <button class="btn bgr" onclick="clearEditor()">🗑 Clear</button>
+        <button class="btn bg" onclick="compileAndGo()">🔄 Generate PDF →</button>
+        <span style="font-size:11px;color:#6b7280;" id="lcCount">0 lines</span>
+        <span style="font-size:11px;color:#6b7280;margin-left:8px;">
+          <span style="color:#569cd6;">■</span> Commands &nbsp;
+          <span style="color:#ce9178;">■</span> Text &nbsp;
+          <span style="color:#b5cea8;">■</span> Numbers &nbsp;
+          <span style="color:#6a9955;">■</span> Comments &nbsp;
+          <span style="color:#ffd700;">■</span> Brackets
+        </span>
+      </div>
+      <textarea id="latexEditor" style="display:none;"></textarea>
+      <div id="cmEditor" style="flex:1; min-height:0; border-radius:8px; overflow:hidden; border:1px solid #2a2f45; font-size:13px;"></div>
+      <div class="card warn">
+        <strong>Tip:</strong> Colors help you find things fast — <span style="color:#569cd6;">blue =  commands</span>, <span style="color:#ce9178;">orange = your text/names/dates</span>, <span style="color:#b5cea8;">green = numbers</span>, <span style="color:#6a9955;">grey = comments</span>. Edit anything, then click <strong>Compile PDF</strong>.
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="panel" id="step4Panel">
+      <div class="pdf-toolbar">
+        <button class="btn bg" onclick="downloadPDF()">⬇️ Download PDF</button>
+        <button class="btn bp" onclick="recompile()">🔄 Recompile</button>
+        <button class="btn bgr" onclick="goStep(3)">← Edit Code</button>
+        <div class="spinner" id="spin"></div>
+        <span class="status-pill" id="statusPill">Waiting...</span>
+        <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+          <input id="filenameInput" type="text" value="Pavan_B_Resume"
+            style="padding:7px 10px; background:#1a1f2e; border:1px solid #2a2f45; border-radius:6px;
+                   color:#e0e0e0; font-size:12px; width:180px; outline:none;"
+            onfocus="this.style.borderColor='#3d4fd6'" onblur="this.style.borderColor='#2a2f45'"
+            placeholder="filename (no .pdf)" />
+          <span style="font-size:12px; color:#6b7280;">.pdf</span>
+        </div>
+      </div>
+      <div class="pdf-frame-wrap" id="pdfWrap">
+        <div class="pdf-placeholder" id="pdfPlaceholder">
+          <div class="icon">📄</div>
+          <div>Compile PDF from Step 3 to preview here</div>
+        </div>
+        <iframe id="pdfFrame" style="display:none;"></iframe>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+// ════════════════════════════════════════════════════
+//  HIDDEN PROMPT TEMPLATE
+// ════════════════════════════════════════════════════
+const HIDDEN_PROMPT = String.raw`You are an ATS 100% resume optimizer trained to generate resumes that score 100% on applicant tracking systems. Your task is to return ONLY optimized Latex TEX output — no comments, no explanations, and no extra text.
+
+INSTRUCTIONS:
+- Output must be a valid Latex TEX resume ONLY. Do not include markdown, formatting hints, or explanations.
+- Optimize for keyword density, ATS scoring, and semantic alignment.
+
+REQUIREMENTS:
+You are a Professional Resume writer in the specific domain of the job description.
+- If the JD belongs to IT — you are an IT/Software Architect.
+- If it is non-technical — you are an expert in that field.
+- Match action verbs and tech stack to the job description.
+- Add skills, tools, and servers based on their matured timeline (know which technology came in which year).
+- Respond with COLORFUL METADATA Latex TEX output only.
+- You are an ATS resume optimizer trained to generate resumes that score 100% on applicant tracking systems.
+- Your task is to return ONLY optimized Latex TEX output — no comments, no explanations, and no extra text.
+- Respond with visual Latex TEX metadata. Generate a Latex TEX artifact preserving the original schema exactly.
+
+INSTRUCTIONS:
+- Output must be a valid Latex TEX resume ONLY. Do not include markdown, formatting hints, or explanations.
+- Optimize for keyword density, ATS scoring, and semantic alignment.
+- Use simple English words — since I am an Indian engineer, avoid complex vocabulary.
+
+CRITICAL: GLOBAL VERB UNIQUENESS RULE — HIGHEST PRIORITY
+ABSOLUTE REQUIREMENT: NO VERB REPETITION ACROSS ENTIRE RESUME
+- Each action verb MUST be used only ONCE across ALL client experiences and summary sections.
+- Use different action verbs across all bullet points.
+- Track used verbs and ensure no duplicates across entire document.
+
+STRICT VERB-TENSE RULES:
+1. Current Project (latest/ongoing role):
+   - Use mix of present tense and past tense verbs.
+   - DO NOT use present-continuous (-Ing) verbs.
+2. Completed Projects (all previous roles):
+   - Use ONLY past tense verbs.
+   - DO NOT use present tense or -Ing verbs.
+3. GLOBAL FORBIDDEN RULE:
+   - Absolutely NO "-Ing" verbs anywhere in the resume.
+   - NO: designing, developing, building, managing, implementing, creating.
+   - YES: designed, developed, built, managed, implemented, created.
+
+FORBIDDEN WORDS (DO NOT USE UNDER ANY CIRCUMSTANCES):
+"Adept", "Self-starter", "Championed", "Specialized", "Spearheaded", "Proven track record",
+"learned", "wrote", "Cutting-edge", "Robust", "Key player", "Instrumental",
+"Mastery", "Well-versed", "Results-driven", "Team player", "Strategic",
+"Exceptional", "Outstanding", "Value-added", "Game-changer", "World-class", "Industry-leading",
+"Mission-critical", "Holistic", "Engineered", "Led", "Investigated",
+"Revolutionized", "Pioneered", "Masterminded"
+
+SECTION RULES
+
+Professional Title:
+- Change the title according to the JD — use the best suitable title that is perfectly aligned with the JD.
+
+PROFESSIONAL SUMMARY:
+- Create exactly 15 bullet points with character length between 230-280 characters per bullet.
+- Include "5+ years of experience in [specialization]" in a human way.
+- Based on my experience in Finance, Electrical and Electronics Manufacturing, and Education domains, integrate JD mentioned keywords with my existing project domains.
+- Use 18 completely unique verbs that are NOT used in any client experience section.
+- Start bullet points with humanized action verbs.
+- Vary bullet structures: 60% use format [Technology/Tool] + [Problem] + [Solution] + [Impact], 40% use alternative narrative structures.
+
+TECHNICAL SKILLS SECTION:
+- Generate exactly 10-16 skill categories.
+- Categories should include: Programming Languages, Frameworks, Frontend, Backend, Databases, Cloud Platforms, DevOps Tools, Testing Tools, Monitoring, Version Control, Security, AI/ML.
+- Each category should have 4-15 relevant skills from the JD.
+- All mandatory JD skills must appear in the technical skills section.
+- Format as Latex TEX object with category names as keys and skill arrays as values.
+
+PROFESSIONAL EXPERIENCE — GLOBAL RULES (APPLY TO ALL CLIENTS):
+- Organize bullets by these 6 phases:
+  => Planning / Analysis / Design
+  => Development (Building features)
+  => Testing (Quality / Automation)
+  => Deployment (CI/CD + Cloud)
+  => Monitoring / Maintenance (Fixing, improving)
+  => Every bullet point should be meaningful.
+- Do not change roles unless specifically requested.
+- Ensure time compatibility — only include skills/JD keywords used during actual project timeline.
+- Vary sentence lengths and include authentic tasks: debugging, meetings, code reviews, troubleshooting.
+- Avoid generic corporate buzzwords, filler phrases, and AI-like statements.
+- Focus on concrete, human-readable actions and outcomes.
+- Add personal perspective, trial-and-error moments, small emotions to make bullets relatable.
+- Include mundane but authentic developer tasks and real project challenges.
+- DO NOT mention multi-cloud — integrate JD tools with existing single cloud only.
+- ABSOLUTELY NO "-Ing" verbs anywhere.
+
+PROFESSIONAL EXPERIENCE — CLIENT SPECIFIC RULES
+CLIENT 1 (Senior-most role - most recent) -  Fidelity Investments
+
+    • Do not change the role, keep the original role
+    • Write exactly 16 bullet points per role, each between 230-280 characters long
+    • Use mix of present and past tense verbs (current project)
+    • Integrate JD skills and tools in 75% of bullet points using format: [Technology/Tool] + [Problem] + [Solution/Action Taken] + [Impact]
+    • My project is related to Insurance  — write the bullet points by integrating JD keywords with project Industrial Machinery Manufacturing regulations
+    • Use varied action verbs appropriate to enterprise-level, real-time projects with latest technologies (Senior-most role) level, avoiding repetition across bullets
+    • Each verb MUST be unique - NO verb repetition across entire resume
+    • Location: Westlake , TX  
+
+CLIENT 2 (Client 2 level) -  PNC Bank
+    • Do not change the role, keep the original role
+    • Write exactly 14 bullet points per role, each between 230-280 characters long
+    • Use ONLY past tense verbs (completed project)
+    • Integrate JD skills and tools in 70% of bullet points using format: [Technology/Tool] + [Problem] + [Solution/Action Taken] + [Impact]
+    • My project is related to Banking — write the bullet points by integrating JD keywords with project Banking regulations
+    • Use varied action verbs appropriate to mid-senior level with progression from Client 1 level, avoiding repetition across bullets
+    • Each verb MUST be unique - NO verb repetition across entire resume
+    • Location:  Scottsdale, AZ
+    
+
+CLIENT 3 (Client 3 level) - Edward Jones (Kerrville, TX)
+    • Do not change the role, keep the original role
+    • Write exactly 12 bullet points per role, each between 230-280 characters long
+    • Use ONLY past tense verbs (completed project)
+    • Integrate JD skills and tools in 65% of bullet points using format: [Technology/Tool] + [Problem] + [Solution/Action Taken] + [Impact]
+    • My project is related to Financial Services  — write the bullet points by integrating JD keywords with project Government regulations
+    • Use varied action verbs appropriate to moderate responsibility level, avoiding repetition across bullets
+    • Each verb MUST be unique - NO verb repetition across entire resume
+    • Location: Kerrville, TX
+    
+
+
+CLIENT 4 (Client 4 level) -  Flipkart (Bengaluru, Karnataka, India)
+    • Do not change the role, keep the original role
+    • Write exactly 10 bullet points per role, each between 230-280 characters long
+    • Use ONLY past tense verbs (completed project)
+    • Integrate JD skills and tools in 60% of bullet points using format: [Technology/Tool] + [Problem] + [Solution/Action Taken] + [Impact]
+    • My project is related to E-commerce — write the bullet points by integrating JD keywords with project Insurance regulations
+    • Use varied action verbs appropriate to entry-to-mid level responsibilities level, avoiding repetition across bullets
+    • Each verb MUST be unique - NO verb repetition across entire resume
+    • Location: Bengaluru, Karnataka, India
+    
+
+CERTIFICATIONS:
+- Keep existing certifications from AI analysis unchanged — do not add new certifications.
+
+SKILL REPETITION REQUIREMENTS:
+1. mandatory_skills_tools_services: repeat each skill 6 to 8 times across Professional Summary and Responsibilities sections.
+2. mandatory_skills_tools_services_that_are_not_explicitly_mentioned: repeat 4 to 6 times across Professional Summary and Responsibilities sections.
+- Non-mandatory but relevant skills: appear 2-4 times throughout resume.
+- Integrate JD keywords naturally into bullet points without forced repetition.
+- Environment section for each client MUST list all technologies used in that project.
+
+TOOL & TECHNOLOGY MAPPING RULES — Timeline Compatibility:
+- DO NOT use technologies before their actual release/adoption dates.
+- Research and verify technology timelines before assignment.
+- Match tools to project years realistically.
+- Avoid futuristic technology mentions for historical projects.
+- Consider mainstream adoption dates, not just initial release.
+
+Technology Evolution Guidelines:
+- Early Career (2010-2015): Traditional enterprise tools, on-premise solutions, monolithic architectures.
+- Mid Career (2015-2020): Cloud migration, containerization, microservices adoption, DevOps emergence.
+- Recent Projects (2020+): Cloud-native, serverless, modern data stack, advanced orchestration.
+- Always ensure HIPAA compliance for healthcare projects: HIPAA, GDPR, FDA, CHIP.
+
+Enterprise Focus:
+- Real-time processing systems
+- Large-scale data pipelines
+- High-availability architectures
+- Performance optimization
+- Scalability solutions
+- Enterprise integrations
+
+HUMAN-TONE & AUTHENTICITY RULES:
+- Include authentic developer experiences: debugging sessions, code reviews, team meetings, troubleshooting.
+- Show realistic progression and mundane but authentic tasks.
+- Vary sentence lengths naturally and avoid corporate buzzwords.
+- Focus on concrete, human-readable actions rather than generic achievements.
+- Include small emotions and relatable experiences to make bullets authentic.
+
+EXECUTION CHECKLIST:
+- Exact bullet count per section as specified (Summary: 15, then per client as defined).
+- Character count between 230-280 for EVERY bullet point.
+- ZERO verb repetition across all sections — each verb used only once in entire resume.
+- Varying bullet structures by client level (75% to 55% format ratio, decreasing with seniority).
+- Don't add fake certificates unless specifically requested.
+- Technology timeline compatibility verified.
+- JD keywords incorporated throughout.
+- Career progression shown through verb choice and responsibility level.
+- Enterprise-level project focus maintained.
+- Strictly do not include any numeric percentages (%) in the output.
+- All forbidden words avoided.
+
+CRITICAL: Follow these rules exactly. No deviations, no additional formatting, no comments in output.
+
+FINAL OUTPUT FORMAT:
+Generate a Latex TEX artifact or structured Latex TEX code block preserving the original schema exactly, with no metadata changes.
+The resume should be ATS-friendly, human-readable, and perfectly aligned with the provided job description while maintaining authenticity and avoiding AI-generated language patterns.
+
+Resume strictly based on the job description:
+	•	Write human-like, realistic, and detailed bullet points reflecting real enterprise experience.
+	•	No AI buzzwords, no fluff, no assumptions, no fake tools or timelines.
+	•	Keep language professional and practical.
+
+Professional Summary:
+	•	First point must clearly state my total years of experience and overall background.
+
+FORBIDDEN WORDS (FINAL REMINDER — DO NOT USE):
+"Adept", "Self-starter", "Championed", "Specialized", "Spearheaded", "Proven track record", "Expert", "Advanced",
+"Cutting-edge", "Leveraged", "Robust", "Key player", "Instrumental", "Mastery", "Well-versed",
+"Results-driven", "Detail-oriented", "Team player", "Strategic", "Exceptional", "Outstanding","Assembled",
+"Value-added", "Game-changer", "World-class", "Industry-leading", "Mission-critical", "Holistic", "Guided", "Attained"
+
+USE THESE SIMPLE WORDS (as per requirement):
+Built, Deployed, Assembled, Used, Utilized, Applied, Integrated,
+Operationalized, Collaborated, Aligned with, Partnered with,
+Contributed, Delivered, Created, Developed, Produced,
+Helped, Assisted, Supported, Facilitated,
+Achieved, Obtained, Secured, Coordinated, Prepared, Provided,
+Mentored, Orchestrated, Architected, Implemented, Executed,
+Configured, Automated, Modernized, Scaled, Transformed, Enhanced,
+Improved, Optimized, Streamlined
+
+
+ RESUME TO OPTIMISE: # Rahul Karri
+*Email:* rahulkarri02@gmail.com
+*Contact:* +1469-347-2632
+*Linkedin*  https://www.linkedin.com/in/rahul-karri-524502377
+
+## Professional Experience Summary
+Having experience in  Insurance(Fidelity Investments) , Banking(PNC Bank), Fincial Services(Edward Jones), E-commerce(Flipkart)  domains
+
+## Technical Skills
+Programming Languages & Frameworks | Frontend Development | Backend Development & API
+Database Technologies | Cloud & DevOps | Security & Authentication
+Testing & Quality Assurance | Monitoring & Logging | Version Control & Collaboration | AI & ML
+
+## Professional Experience
+* Fidelity Investments* |Westlake , TX | Jan 2025 to Present 
+*PNC Bank * |Scottsdale, AZ | Jan 2024 to Dec 2025
+*Edward Jones* |Kerrville, TX | Jan 2023 to Dec 2023
+*Flipkart* | Bengaluru, Karnataka, India | Jul 2021 to Dec 2022
+
+by following the above instructions and rules, optimize the resume and return the ATS 100% optimized resume.
+- Do NOT ask any questions — you have everything. Just return the Latex TEX format resume.
+- No single comment other than the Latex TEX format resume.
+
+- STRICT: Every bullet point MUST be between 230-280 characters. Count characters. If shorter, expand with more JD keywords and context.
+
+Output ONLY this Latex TEX format and STOP:
+
+\documentclass[10pt, letterpaper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{mathptmx}
+
+% Page Setup
+\geometry{left=0.5in, top=0.5in, right=0.5in, bottom=0.5in}
+\pagestyle{empty}
+
+% Color Definitions — black only
+\definecolor{primary}{RGB}{0, 0, 0}
+
+% Title Formatting
+\titleformat{\section}{\large\bfseries\color{primary}\uppercase}{}{0em}{}[\titlerule]
+\titlespacing{\section}{0pt}{10pt}{5pt}
+
+\begin{document}
+
+% PERSONAL INFORMATION
+\begin{center}
+    {\Huge \textbf{Rahul karri}} \\
+    \vspace{4pt}
+	{\textbf{Professional Title}\\
+    +1 913-701-7729 $\vert$ \href{mailto:rahulkarri02@gmail.com} $\vert$ \href{https://www.linkedin.com/in/rahul-karri-524502377}{LinkedIn}
+\end{center}
+
+\section{Professional Summary}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item [Bullet Point 1 — 230-280 chars]
+  \item [Bullet Point 2 — 230-280 chars]
+  \item [Bullet Point 3 — 230-280 chars]
+  \item [Bullet Point 4 — 230-280 chars]
+  \item [Bullet Point 5 — 230-280 chars]
+  \item [Bullet Point 6 — 230-280 chars]
+  \item [Bullet Point 7 — 230-280 chars]
+  \item [Bullet Point 8 — 230-280 chars]
+  \item [Bullet Point 9 — 230-280 chars]
+  \item [Bullet Point 10 — 230-280 chars]
+  \item [Bullet Point 11 — 230-280 chars]
+  \item [Bullet Point 12 — 230-280 chars]
+  \item [Bullet Point 13 — 230-280 chars]
+  \item [Bullet Point 14 — 230-280 chars]
+  \item [Bullet Point 15 — 230-280 chars]
+\end{itemize}
+
+\section{Technical Skills}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item \textbf{[Category 1]:} Skill1, Skill2, Skill3
+  \item \textbf{[Category 2]:} Skill4, Skill5, Skill6
+\end{itemize}
+
+\section{Professional Experience}
+
+\textbf{[Job Title]} \hfill \textit{Jan 2025 to Present } \\
+\textit{Fidelity Investments} \hfill \textit{Westlake,TX}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item [16 bullet points — 230-280 chars each, mix present+past tense, \textbf{JD keywords highlighted}]
+\end{itemize}
+\textbf{Environment:} [Technology stack from JD]
+
+\textbf{[Job Title]} \hfill \textit{Jan 2024 to Dec 2025} \\
+\textit{PNC Bank } \hfill \textit{Scottsdale, AZ }
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item [14 bullet points — 230-280 chars each, past tense only, \textbf{JD keywords highlighted}]
+\end{itemize}
+\textbf{Environment:} [Technology stack from JD]
+
+\textbf{[Job Title]} \hfill \textit{Jan 2023 to Dec 2023} \\
+\textit{Edward Jones} \hfill \textit{Kerrville, TX }
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item [12 bullet points — 230-280 chars each, past tense only, \textbf{JD keywords highlighted}]
+\end{itemize}
+\textbf{Environment:} [Technology stack from JD]
+
+\textbf{[Job Title]} \hfill \textit{Jul 2021 to Dec 2022} \\
+\textit{Flipkart} \hfill \textit{Bengaluru, Karnataka, India (Onsite)}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item [10 bullet points — 230-280 chars each, past tense only, \textbf{JD keywords highlighted}]
+\end{itemize}
+\textbf{Environment:} [Technology stack from JD]
+
+\section{Education}
+\textbf{Masters in Cyber Security} \hfill \textit{2024} \\
+\textit{The University of Texas at Dallas, Texas} \hfill \textit{Kansas City, Mo}
+\textbf{Banchelor's Degree in Computer Science } \hfill \textit{2022} \\
+\textit{Bharat University} \hfill \textit{India}
+
+\section{Certifications}
+\begin{itemize}[leftmargin=*, noitemsep, topsep=2pt]
+  \item  Database administration by CCNA ( Cisco Certified Network Associate ) 
+ \item  Qulays vulnerability management and cloud configuration from Qulays Official Website 
+ \item COMPTA Security+ Certified 
+\item Certified Forensic Investigator from Ucertify
+ \item Vulnerability Assessment and Penetration Testing (VAPT) from Sytech Labs
+ \item Certified Ethical Hacker (CEH) from Sytech Lab
+\end{itemize}
+
+\end{document}
+
+HEADING COLOR RULE:
+- Blue color RGB(0,51,102) on ONLY these 5 headings:
+  PROFESSIONAL SUMMARY, TECHNICAL SKILLS, PROFESSIONAL EXPERIENCE,
+  EDUCATION, CERTIFICATIONS
+- Use: \titleformat{\section}{\large\bfseries\color{primary}\uppercase}{}{0em}{}[\titlerule]
+- Everything else = BLACK only. No exceptions.
+
+KEYWORD HIGHLIGHTING RULE:
+- Every bullet MUST have exactly ONE \textbf{} — no more, no less
+- ONLY highlight words taken directly from the JD
+  (tools, protocols, platforms, domain terms, certifications)
+- NEVER highlight: verbs, generic words, or anything not in the JD
+- WRONG: \textbf{Deployed} or \textbf{system} or \textbf{project}
+- CORRECT: \textbf{OSPF} or \textbf{SD-WAN} or \textbf{Python}
+- Zero or two \textbf{} in one bullet = VIOLATION
+
+
+JOB DESCRIPTION:
+`
+
+// ════════════════════════════════════════════════════
+//  APP LOGIC
+// ════════════════════════════════════════════════════
+let fullPrompt = '';
+let pdfBlob = null, pdfUrl = null;
+let cmInstance = null;
+
+// ── Init CodeMirror after DOM ready ──────────────────────────────────────────
+window.addEventListener('load', function() {
+  cmInstance = CodeMirror(document.getElementById('cmEditor'), {
+    mode: 'stex',
+    theme: 'dracula',
+    lineNumbers: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    styleActiveLine: true,
+    lineWrapping: true,
+    tabSize: 2,
+    indentWithTabs: false,
+    value: '',
+    extraKeys: {
+      'Tab': function(cm) { cm.replaceSelection('  '); }
+    }
+  });
+  // Keep hidden textarea in sync so compile functions still work
+  cmInstance.on('change', function() {
+    document.getElementById('latexEditor').value = cmInstance.getValue();
+    document.getElementById('lcCount').textContent =
+      cmInstance.lineCount() + ' lines';
+  });
+});
+
+document.getElementById('jdInput').addEventListener('input', function(){
+  document.getElementById('jdCount').textContent = this.value.length + ' chars';
+});
+
+function goStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById('step'+i+'Panel').classList.remove('active');
+    document.getElementById('tab'+i).classList.remove('active');
+  });
+  document.getElementById('step'+n+'Panel').classList.add('active');
+  document.getElementById('tab'+n).classList.add('active');
+}
+
+function markDone(n) {
+  const tab = document.getElementById('tab'+n);
+  tab.classList.add('done');
+  document.getElementById('n'+n).textContent = '✓';
+}
+
+function generatePrompt() {
+  const jd = document.getElementById('jdInput').value.trim();
+  if (!jd) { toast('Paste a job description first!', 'err'); return; }
+  fullPrompt = HIDDEN_PROMPT + '\n' + jd;
+  document.getElementById('promptDisplay').textContent = fullPrompt;
+  markDone(1); goStep(2);
+  toast('✅ Prompt ready! Copy and paste into Claude AI.');
+}
+
+function copyPrompt() {
+  if (!fullPrompt) { toast('Generate prompt first!', 'err'); return; }
+  copyText(fullPrompt, '✅ Prompt copied! Paste in Claude AI.');
+  markDone(2);
+}
+
+function openClaude() {
+  window.open('https://claude.ai/new', '_blank');
+  toast('Claude AI opened in new tab!', 'inf');
+}
+
+async function pasteLatex() {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (t) {
+      if (cmInstance) { cmInstance.setValue(t); cmInstance.refresh(); }
+      document.getElementById('latexEditor').value = t;
+      updateLC();
+      toast('✅ LaTeX pasted! Colors applied — easy to edit now.');
+    }
+  } catch {
+    if (cmInstance) cmInstance.focus();
+    toast('Press Ctrl+V inside the editor to paste', 'inf');
+  }
+}
+
+function updateLC() {
+  const lines = cmInstance
+    ? cmInstance.lineCount()
+    : document.getElementById('latexEditor').value.split('\n').length;
+  document.getElementById('lcCount').textContent = lines + ' lines';
+}
+
+function clearEditor() {
+  if (cmInstance) { cmInstance.setValue(''); }
+  document.getElementById('latexEditor').value = '';
+  updateLC();
+}
+
+// Tab handling is done by CodeMirror extraKeys config above
+
+async function compileAndGo() {
+  const latex = document.getElementById('latexEditor').value.trim();
+  if (!latex) { toast('Paste LaTeX code first!', 'err'); return; }
+  markDone(3); goStep(4);
+  await compilePDF(latex);
+}
+
+async function recompile() {
+  const latex = document.getElementById('latexEditor').value.trim();
+  if (!latex) { toast('No LaTeX found. Go back to Step 3.', 'err'); return; }
+  await compilePDF(latex);
+}
+
+async function compilePDF(latex) {
+  setStatus('loading','⏳ Compiling...'); showSpin(true);
+  document.getElementById('pdfFrame').style.display = 'none';
+  document.getElementById('pdfPlaceholder').style.display = 'flex';
+  document.getElementById('pdfPlaceholder').innerHTML = '<div class="icon">⏳</div><div>Compiling LaTeX to PDF...</div>';
+
+  const apis = [compileLatexOnline, compilePdflatex];
+  for (const api of apis) {
+    try {
+      const blob = await api(latex);
+      if (blob && blob.size > 1000) {
+        if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+        pdfBlob = blob; pdfUrl = URL.createObjectURL(blob);
+        document.getElementById('pdfFrame').src = pdfUrl;
+        document.getElementById('pdfFrame').style.display = 'block';
+        document.getElementById('pdfPlaceholder').style.display = 'none';
+        setStatus('ok','✅ PDF Ready'); showSpin(false);
+        toast('✅ PDF ready! Click Download PDF.');
+        return;
+      }
+    } catch(e) { console.warn(e); }
+  }
+
+  showSpin(false); setStatus('err','❌ Compile failed');
+  document.getElementById('pdfPlaceholder').innerHTML = `
+    <div class="icon">⚠️</div>
+    <div style="text-align:center;max-width:380px;color:#94a3b8;">
+      <strong style="color:#f97316;">Compiler unavailable right now.</strong><br><br>
+      Try clicking <strong>🔄 Recompile</strong> again in a moment, or check your LaTeX for errors in Step 3.
+    </div>`;
+  toast('Use Overleaf Backup button to get your PDF', 'err');
+}
+
+async function compileLatexOnline(latex) {
+  const r = await fetch('https://latex.ytotech.com/builds/sync', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ compiler:'pdflatex', resources:[{main:true,content:latex}] })
+  });
+  if (!r.ok) throw new Error('ytotech ' + r.status);
+  const b = await r.blob();
+  if (b.type !== 'application/pdf') throw new Error('not pdf');
+  return b;
+}
+
+async function compilePdflatex(latex) {
+  const r = await fetch('https://latexonline.cc/compile?text=' + encodeURIComponent(latex) + '&command=pdflatex');
+  if (!r.ok) throw new Error('latexonline ' + r.status);
+  const b = await r.blob();
+  if (b.type !== 'application/pdf') throw new Error('not pdf');
+  return b;
+}
+
+function downloadPDF() {
+  if (!pdfBlob) { toast('No PDF yet. Click Recompile.', 'err'); return; }
+  const name = (document.getElementById('filenameInput').value.trim() || 'Resume') + '.pdf';
+  const a = document.createElement('a');
+  a.href = pdfUrl; a.download = name; a.click();
+  toast('✅ Downloaded as ' + name);
+}
+
+function setStatus(t, txt) {
+  const el = document.getElementById('statusPill');
+  el.textContent = txt;
+  el.className = 'status-pill ' + (t==='ok'?'ok':t==='err'?'err':'loading');
+}
+function showSpin(v) { document.getElementById('spin').style.display = v?'block':'none'; }
+
+function copyText(text, msg) {
+  navigator.clipboard.writeText(text).then(()=>toast(msg)).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast(msg);
+  });
+}
+
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (type?' '+type:'');
+  setTimeout(()=>el.classList.remove('show'), 3500);
+}
+</script>
+</body>
+</html>
